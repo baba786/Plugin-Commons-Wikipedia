@@ -1,0 +1,21 @@
+{
+  "name": "commons",
+  "version": "1.0.0",
+  "description": "",
+  "main": "code.js",
+  "scripts": {
+    "build:tailwind": "tailwindcss build src/tailwind.css -o src/output.css",
+    "build": "tsc -p tsconfig.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.62.0",
+    "ts-loader": "^9.4.2",
+    "webpack-cli": "^5.0.1"
+  },
+  "dependencies": {
+    "tailwindcss": "^3.3.1"
+  }
+}
