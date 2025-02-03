@@ -33,39 +33,39 @@
 
       let loadingProgress = 0;
       let loadingInterval = null;
-function showLoadingIndicator(show) {
-  console.log("UI: Showing loading indicator:", show);
-  const loadingIndicator = document.getElementById('loadingIndicator');
-  const progressBar = loadingIndicator.querySelector('div');
-  
-  if (show === true) {
-    loadingIndicator.classList.remove('hidden');
-    loadingProgress = 0;
-    progressBar.style.width = '0%';
-    
-    if (loadingInterval) clearInterval(loadingInterval);
-    loadingInterval = setInterval(() => {
-      loadingProgress += Math.random() * 10;
-      if (loadingProgress > 90) loadingProgress = 90;
-      progressBar.style.width = `${loadingProgress}%`;
-    }, 200);
-  } else {
-    if (loadingInterval) {
-      clearInterval(loadingInterval);
-      loadingInterval = null;
-    }
-    progressBar.style.width = '100%';
-    setTimeout(() => {
-      loadingIndicator.classList.add('hidden');
-      progressBar.style.width = '0%';
-    }, 300);
-  }
-}
+      
+      function showLoadingIndicator(show) {
+        console.log("UI: Showing loading indicator:", show);
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const progressBar = loadingIndicator.querySelector('div');
+        
+        if (show === true) {
+          loadingIndicator.classList.remove('hidden');
+          loadingProgress = 0;
+          progressBar.style.width = '0%';
+          
+          if (loadingInterval) clearInterval(loadingInterval);
+          loadingInterval = setInterval(() => {
+            loadingProgress += Math.random() * 10;
+            if (loadingProgress > 90) loadingProgress = 90;
+            progressBar.style.width = `${loadingProgress}%`;
+          }, 200);
+        } else {
+          if (loadingInterval) {
+            clearInterval(loadingInterval);
+            loadingInterval = null;
+          }
+          progressBar.style.width = '100%';
+          setTimeout(() => {
+            loadingIndicator.classList.add('hidden');
+            progressBar.style.width = '0%';
+          }, 300);
+        }
+      }
 
       function hideLoadingIndicator() {
         document.getElementById('loadingIndicator').classList.add('hidden');
         document.getElementById('loadingIndicator').classList.remove('flex');
-
       }
 
       async function searchImages() {
@@ -73,8 +73,7 @@ function showLoadingIndicator(show) {
         let query = document.getElementById('search-query').value.trim();
         lastSearchQuery = query;
 
-        if (!validateSearchQuery(query) || !query.match(/^[a-zA-Z0-9 _-]{1,100}$/)) {
-          alert('Please enter a valid search term using only letters, numbers, spaces, underscores, and hyphens.');
+        if (!validateSearchQuery(query)) {
           hideLoadingIndicator();
           return;
         }
@@ -90,16 +89,14 @@ function showLoadingIndicator(show) {
 
           const searchResultsContainer = document.getElementById('search-results');
           searchResultsContainer.innerHTML = '';
-          searchResultsContainer.classList.remove('flex', 'hidden'); // Ensure container is not flex or hidden
+          searchResultsContainer.classList.remove('flex', 'hidden');
 
-          // If there are no search results, display a message
           if (data.query.search.length === 0) {
             searchResultsContainer.innerHTML = '<p>No images found. Try a different search term.</p>';
-            searchResultsContainer.classList.add('hidden'); // Hide results container
+            searchResultsContainer.classList.add('hidden');
           } else {
-            // Loop through each result and create image elements
             for (const result of data.query.search) {
-              if (result.title.toLowerCase().endsWith('.png') || result.title.toLowerCase().endsWith('.jpeg') || result.title.toLowerCase().endsWith('.jpg')) {
+              if (result.title.toLowerCase().match(/\.(png|jpeg|jpg)$/)) {
                 const imgResponse = await fetch(
                   `https://commons.wikimedia.org/w/api.php?action=query&prop=imageinfo&format=json&origin=*&iiprop=url&iiurlwidth=${selectedSize}&titles=${encodeURIComponent(
                     result.title
@@ -109,78 +106,77 @@ function showLoadingIndicator(show) {
                 const imgData = await imgResponse.json();
 
                 const imgInfo = Object.values(imgData.query.pages)[0].imageinfo[0];
+                const imageUrl = imgInfo.url;
+                const thumbUrl = imgInfo.thumburl;
+
                 const imgElement = document.createElement('img');
-                imgElement.src = imgInfo.thumburl;
+                imgElement.src = thumbUrl;
                 imgElement.title = result.title;
                 imgElement.classList.add('cursor-pointer');
                 imgElement.onclick = () => {
-                  window.parent.postMessage({ pluginMessage: { type: 'insert-image', url: imgInfo.url, fillSelected: true } }, '*');
+                  window.parent.postMessage({ pluginMessage: { type: 'insert-image', url: imageUrl, fillSelected: true } }, '*');
                 };
 
                 searchResultsContainer.appendChild(imgElement);
               }
             }
-            searchResultsContainer.classList.remove('hidden'); // Show results container
-            searchResultsContainer.classList.add('flex'); // Add flex to display results
+            searchResultsContainer.classList.remove('hidden');
+            searchResultsContainer.classList.add('flex');
           }
         } catch (error) {
           console.error('Fetch error:', error);
           searchResultsContainer.innerHTML = '<p>There was a problem fetching the search results. Please try again later.</p>';
-          searchResultsContainer.classList.add('hidden'); // Hide results container on error
+          searchResultsContainer.classList.add('hidden');
         } finally {
           hideLoadingIndicator();
         }
       }
-        async function searchWikipedia() {
-          showLoadingIndicator()
-          const query = document.getElementById('text-search-query').value.trim(); // Trim the query for any leading or trailing spaces
-          lastSearchQuery = query;
 
-          // Call validateSearchQuery and return early if validation fails
-          if (!validateSearchQuery(query)) {
-            document.getElementById('loadingIndicator').classList.add('hidden'); // Hide loading indicator if validation fails
-            return; // Stop execution if the query is not valid
-          }
+      async function searchWikipedia() {
+        showLoadingIndicator()
+        const query = document.getElementById('text-search-query').value.trim();
+        lastSearchQuery = query;
 
-          try {
-            const response = await fetch(
-              `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&format=json&origin=*&titles=${encodeURIComponent(
-                query
-              )}`
-            );
-            if (!response.ok) throw new Error('Network response was not ok.');
+        if (!validateSearchQuery(query)) {
+          document.getElementById('loadingIndicator').classList.add('hidden');
+          return;
+        }
 
-            const data = await response.json();
+        try {
+          const response = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&format=json&origin=*&titles=${encodeURIComponent(
+              query
+            )}`
+          );
+          if (!response.ok) throw new Error('Network response was not ok.');
 
-            if (data && data.query && data.query.pages) {
-              const page = Object.values(data.query.pages)[0];
-              if (page && page.extract) {
-                const pageTitle = page.title;
-                const pageContent = page.extract;
-                document.getElementById('text-search-title').innerText = pageTitle;
-                document.getElementById('text-search-content').innerHTML = pageContent;
-              } else {
-                // Handle the case where the extract is undefined
-                document.getElementById('text-search-title').innerText = 'No content available';
-                document.getElementById('text-search-content').innerHTML = 'The search did not return any results or content is not available for this page.';
-              }
+          const data = await response.json();
+
+          if (data && data.query && data.query.pages) {
+            const page = Object.values(data.query.pages)[0];
+            if (page && page.extract) {
+              const pageTitle = page.title;
+              const pageContent = page.extract;
+              document.getElementById('text-search-title').innerText = pageTitle;
+              document.getElementById('text-search-content').innerHTML = pageContent;
             } else {
-              // Handle the case where the response or pages are undefined
               document.getElementById('text-search-title').innerText = 'No content available';
               document.getElementById('text-search-content').innerHTML = 'The search did not return any results or content is not available for this page.';
             }
-            styleSections(); // Ensure the newly loaded content is styled appropriately
-          } catch (error) {
-            console.error('Fetch error:', error);
-            // Handle fetch errors (e.g., network issues)
-            document.getElementById('text-search-title').innerText = 'Error';
-            document.getElementById('text-search-content').innerHTML = 'There was a problem fetching the search results. Please try again later.';
-          } finally {
-            document.getElementById('loadingIndicator').classList.add('hidden'); // Hide loading indicator after processing response
+          } else {
+            document.getElementById('text-search-title').innerText = 'No content available';
+            document.getElementById('text-search-content').innerHTML = 'The search did not return any results or content is not available for this page.';
           }
+          styleSections();
+        } catch (error) {
+          console.error('Fetch error:', error);
+          document.getElementById('text-search-title').innerText = 'Error';
+          document.getElementById('text-search-content').innerHTML = 'There was a problem fetching the search results. Please try again later.';
+        } finally {
+          document.getElementById('loadingIndicator').classList.add('hidden');
         }
+      }
 
-      
       function styleSections() {
         const content = document.getElementById('text-search-content');
         const sectionHeaders = content.getElementsByTagName('h2');
@@ -200,28 +196,27 @@ function showLoadingIndicator(show) {
           header.style.marginBottom = '0.25rem';
         }
       }
+
       function validateSearchQuery(query) {
-      if (query === '') {
-        // Use Figma's UI API to show a dialog box
-        parent.postMessage({ pluginMessage: { type: 'notify', message: 'Please enter a search term to continue.' } }, '*');
-        return false;
-      } else if (!query.match(/^[a-zA-Z0-9 _-]{1,100}$/)) {
-        // If you want to notify users about invalid characters
-        parent.postMessage({ pluginMessage: { type: 'notify', message: 'Please enter a valid search term using only letters, numbers, spaces, underscores, and hyphens.' } }, '*');
-        return false;
+        if (query === '') {
+          parent.postMessage({ pluginMessage: { type: 'notify', message: 'Please enter a search term to continue.' } }, '*');
+          return false;
+        } else if (!query.match(/^[a-zA-Z0-9 _-]{1,100}$/)) {
+          parent.postMessage({ pluginMessage: { type: 'notify', message: 'Please enter a valid search term using only letters, numbers, spaces, underscores, and hyphens.' } }, '*');
+          return false;
+        }
+        return true;
       }
-      return true;
-  }
-    
-  window.showLoadingIndicator = showLoadingIndicator;
-  window.onmessage = (event) => {
-    console.log("UI: Received message:", event.data.pluginMessage);
-    if (event.data.pluginMessage && event.data.pluginMessage.type === 'showLoading') {
-      const show = event.data.pluginMessage.show === true;
-      console.log("UI: Showing loading indicator:", show);
-      showLoadingIndicator(show);
-    }
-  };
+
+      window.showLoadingIndicator = showLoadingIndicator;
+      window.onmessage = (event) => {
+        console.log("UI: Received message:", event.data.pluginMessage);
+        if (event.data.pluginMessage && event.data.pluginMessage.type === 'showLoading') {
+          const show = event.data.pluginMessage.show === true;
+          console.log("UI: Showing loading indicator:", show);
+          showLoadingIndicator(show);
+        }
+      };
     </script>
   </head>
   <body class="font-sans p-4">
@@ -253,4 +248,3 @@ function showLoadingIndicator(show) {
     </div>
   </body>
 </html>
-
