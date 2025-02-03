@@ -5,6 +5,28 @@
     <script>
       let selectedSize = '600';
       let lastSearchQuery = '';
+      
+      // Function to check WebP support
+      async function isWebPSupported() {
+        // Check if we've already tested for WebP support
+        if (typeof isWebPSupported.supported !== 'undefined') {
+          return isWebPSupported.supported;
+        }
+        
+        return new Promise(resolve => {
+          const webP = new Image();
+          webP.onload = function() {
+            const result = (webP.width > 0) && (webP.height > 0);
+            isWebPSupported.supported = result;
+            resolve(result);
+          };
+          webP.onerror = function() {
+            isWebPSupported.supported = false;
+            resolve(false);
+          };
+          webP.src = 'data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==';
+        });
+      }
 
       function switchTabs(activeTab) {
         console.log('Switching to tab:', activeTab);
@@ -99,9 +121,9 @@ function showLoadingIndicator(show) {
           } else {
             // Loop through each result and create image elements
             for (const result of data.query.search) {
-              if (result.title.toLowerCase().endsWith('.png') || result.title.toLowerCase().endsWith('.jpeg') || result.title.toLowerCase().endsWith('.jpg')) {
+              if (result.title.toLowerCase().match(/\.(png|jpeg|jpg|webp)$/)) {
                 const imgResponse = await fetch(
-                  `https://commons.wikimedia.org/w/api.php?action=query&prop=imageinfo&format=json&origin=*&iiprop=url&iiurlwidth=${selectedSize}&titles=${encodeURIComponent(
+                  `https://commons.wikimedia.org/w/api.php?action=query&prop=imageinfo&format=json&origin=*&iiprop=url|mime&iiurlwidth=${selectedSize}&titles=${encodeURIComponent(
                     result.title
                   )}`
                 );
@@ -109,12 +131,35 @@ function showLoadingIndicator(show) {
                 const imgData = await imgResponse.json();
 
                 const imgInfo = Object.values(imgData.query.pages)[0].imageinfo[0];
+                
+                // Try to get WebP version if available
+                let imageUrl = imgInfo.url;
+                let thumbUrl = imgInfo.thumburl;
+                
+                // Check if browser supports WebP
+                if (await isWebPSupported()) {
+                  try {
+                    // Request WebP version by adding .webp to the thumb URL
+                    const webpThumbUrl = `${imgInfo.thumburl}.webp`;
+                    const webpUrl = `${imgInfo.url}.webp`;
+                    
+                    // Check if WebP version exists
+                    const webpResponse = await fetch(webpThumbUrl, { method: 'HEAD' });
+                    if (webpResponse.ok) {
+                      thumbUrl = webpThumbUrl;
+                      imageUrl = webpUrl;
+                    }
+                  } catch (error) {
+                    console.log('WebP version not available:', error);
+                  }
+                }
+
                 const imgElement = document.createElement('img');
-                imgElement.src = imgInfo.thumburl;
+                imgElement.src = thumbUrl;
                 imgElement.title = result.title;
                 imgElement.classList.add('cursor-pointer');
                 imgElement.onclick = () => {
-                  window.parent.postMessage({ pluginMessage: { type: 'insert-image', url: imgInfo.url, fillSelected: true } }, '*');
+                  window.parent.postMessage({ pluginMessage: { type: 'insert-image', url: imageUrl, fillSelected: true } }, '*');
                 };
 
                 searchResultsContainer.appendChild(imgElement);
