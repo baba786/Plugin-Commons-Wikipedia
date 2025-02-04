@@ -37,24 +37,27 @@
       function showLoadingIndicator(show) {
         console.log("UI: Showing loading indicator:", show);
         const loadingIndicator = document.getElementById('loadingIndicator');
+        if (!loadingIndicator) return;
         const progressBar = loadingIndicator.querySelector('div');
+        if (!progressBar) return;
+        
+        // Always clear existing interval first
+        if (loadingInterval) {
+          clearInterval(loadingInterval);
+          loadingInterval = null;
+        }
         
         if (show === true) {
           loadingIndicator.classList.remove('hidden');
           loadingProgress = 0;
           progressBar.style.width = '0%';
           
-          if (loadingInterval) clearInterval(loadingInterval);
           loadingInterval = setInterval(() => {
             loadingProgress += Math.random() * 10;
             if (loadingProgress > 90) loadingProgress = 90;
             progressBar.style.width = `${loadingProgress}%`;
           }, 200);
         } else {
-          if (loadingInterval) {
-            clearInterval(loadingInterval);
-            loadingInterval = null;
-          }
           progressBar.style.width = '100%';
           setTimeout(() => {
             loadingIndicator.classList.add('hidden');
@@ -70,7 +73,12 @@
 
       async function searchImages() {
         showLoadingIndicator();
-        let query = document.getElementById('search-query').value.trim();
+        const searchQueryInput = document.getElementById('search-query');
+        if (!searchQueryInput) {
+          hideLoadingIndicator();
+          return;
+        }
+        let query = searchQueryInput.value.trim();
         lastSearchQuery = query;
 
         if (!validateSearchQuery(query)) {
@@ -88,6 +96,16 @@
           const data = await response.json();
 
           const searchResultsContainer = document.getElementById('search-results');
+          if (!searchResultsContainer) {
+            hideLoadingIndicator();
+            return;
+          }
+
+          // Clean up old event listeners before clearing
+          const oldImages = searchResultsContainer.getElementsByTagName('img');
+          for (const img of oldImages) {
+            img.onclick = null;
+          }
           searchResultsContainer.innerHTML = '';
           searchResultsContainer.classList.remove('flex', 'hidden');
 
@@ -113,9 +131,14 @@
                 imgElement.src = thumbUrl;
                 imgElement.title = result.title;
                 imgElement.classList.add('cursor-pointer');
-                imgElement.onclick = () => {
+                
+                // Use addEventListener instead of onclick
+                const clickHandler = () => {
                   window.parent.postMessage({ pluginMessage: { type: 'insert-image', url: imageUrl, fillSelected: true } }, '*');
                 };
+                imgElement.addEventListener('click', clickHandler);
+                // Store the handler for cleanup
+                imgElement.dataset.clickHandler = clickHandler.toString();
 
                 searchResultsContainer.appendChild(imgElement);
               }
@@ -125,8 +148,11 @@
           }
         } catch (error) {
           console.error('Fetch error:', error);
-          searchResultsContainer.innerHTML = '<p>There was a problem fetching the search results. Please try again later.</p>';
-          searchResultsContainer.classList.add('hidden');
+          const searchResultsContainer = document.getElementById('search-results');
+          if (searchResultsContainer) {
+            searchResultsContainer.innerHTML = '<p>There was a problem fetching the search results. Please try again later.</p>';
+            searchResultsContainer.classList.add('hidden');
+          }
         } finally {
           hideLoadingIndicator();
         }
@@ -209,7 +235,9 @@
       }
 
       window.showLoadingIndicator = showLoadingIndicator;
-      window.onmessage = (event) => {
+      
+      // Message handler function
+      window.messageHandler = (event) => {
         console.log("UI: Received message:", event.data.pluginMessage);
         if (event.data.pluginMessage && event.data.pluginMessage.type === 'showLoading') {
           const show = event.data.pluginMessage.show === true;
@@ -217,6 +245,31 @@
           showLoadingIndicator(show);
         }
       };
+
+      // Add message handler
+      window.addEventListener('message', window.messageHandler);
+
+      // Clean up on unload
+      window.addEventListener('unload', () => {
+        // Clear loading interval
+        if (loadingInterval) {
+          clearInterval(loadingInterval);
+          loadingInterval = null;
+        }
+
+        // Remove message handler
+        window.removeEventListener('message', window.messageHandler);
+        delete window.messageHandler;
+
+        // Clean up image event listeners
+        const searchResultsContainer = document.getElementById('search-results');
+        if (searchResultsContainer) {
+          const images = searchResultsContainer.getElementsByTagName('img');
+          for (const img of images) {
+            img.onclick = null;
+          }
+        }
+      });
     </script>
   </head>
   <body class="font-sans p-4">
