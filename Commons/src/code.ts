@@ -13,14 +13,27 @@ function setLoading(show: boolean) {
 }
 
 
-figma.ui.onmessage = async (msg) => {
+const messageHandler = async (msg: any, props: any) => {
+  // Add timeout to fetch requests
+  const fetchWithTimeout = async (url: string, timeout = 30000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  };
   console.log("Received message:", msg);
   if (msg.type === 'insert-image') {
     // Replace the existing content of this block with:
     setLoading(true);
     try {
       const { url } = msg;
-      const imageBytes = await fetch(url).then((res) => res.arrayBuffer());
+      const imageBytes = await fetchWithTimeout(url).then((res) => res.arrayBuffer());
       const imageHash = figma.createImage(new Uint8Array(imageBytes)).hash;
 
       const nodes = figma.currentPage.selection;
@@ -71,3 +84,9 @@ figma.ui.onmessage = async (msg) => {
     }
   }
 };
+
+// Set up the message handler
+figma.ui.onmessage = messageHandler;
+
+// Export for testing
+export default messageHandler;
